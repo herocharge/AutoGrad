@@ -4,8 +4,7 @@ using namespace std;
 
 class AD;
 struct Node{
-    int leaf_idx;
-    int interm_idx;
+    int idx;
     bool is_leaf = true;
     vector<float>& v;
     vector<float>& dv;
@@ -238,7 +237,7 @@ class AD{
 
     Node* add_leaf(Tensor<float>& leaf){
         Node* node = new Node(leaf, leaf.grad);
-        node->leaf_idx = adj.size();
+        node->idx = adj.size();
         node->is_leaf = true;
         nodes.push_back(node);
         adj.push_back(vector<Edge>());
@@ -257,17 +256,17 @@ class AD{
     Node* add_intermediate(Tensor<float>& interm, Node* dep1, vector<float>* dd1, Node* dep2 = nullptr, vector<float>* dd2 = nullptr){
         cout<<"[PTR]"<<&interm<<endl;
         Node* node = new Node(interm, interm.grad);
-        node->interm_idx = adj.size();
+        node->idx = adj.size();
         node->is_leaf = false;
         nodes.push_back(node);
         adj.push_back(vector<Edge>());
 
-        int idx1 = (dep1->is_leaf) ? dep1->leaf_idx : dep1->interm_idx;
-        adj[node->interm_idx].push_back(Edge(idx1, *dd1));
+        int idx1 = dep1->idx;
+        adj[node->idx].push_back(Edge(idx1, *dd1));
 
         if(dep2 != nullptr){
-            int idx2 = (dep2->is_leaf) ? dep2->leaf_idx : dep2->interm_idx;
-            adj[node->interm_idx].push_back(Edge(idx2, *dd2));
+            int idx2 = dep2->idx;
+            adj[node->idx].push_back(Edge(idx2, *dd2));
         }
 
         return node;
@@ -349,13 +348,13 @@ int32_t main(){
     a.need_grad();
 
     // a.push_back(10);
-
-    auto b = (a * a) + (a * 4) + c;
+    for(int i = 0; i < 10; i++  )
+    a = 2 * a;
     // auto c = b + b;
-    auto d = b * b;
+    // auto d = a;
     // auto c = (b / 6);
     ad.backward();
-    for(auto x : b)cout<<x<<" ";cout<<endl;
+    for(auto x : a)cout<<x<<" ";cout<<endl;
     for(auto x : a.grad)cout<<x<<" ";cout<<endl;
     
 }
