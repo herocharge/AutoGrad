@@ -339,11 +339,94 @@ Tensor<T> operator*(int left, Tensor<T>& right){
     return right * left;
 }
 
+
+// gptgen
+std::vector<std::vector<std::string>> readCSV(const std::string& filename) {
+    std::vector<std::vector<std::string>> data;
+
+    // Open the CSV file
+    std::ifstream file(filename);
+    
+    if (!file.is_open()) {
+        std::cerr << "Error opening file: " << filename << std::endl;
+        return data;  // Return an empty vector if the file couldn't be opened
+    }
+
+    std::string line;
+    
+    // Read each line from the file
+    while (std::getline(file, line)) {
+        std::vector<std::string> row;
+        std::stringstream ss(line);
+        std::string cell;
+
+        // Split the line into cells using a comma as a delimiter
+        while (std::getline(ss, cell, ',')) {
+            row.push_back(cell);
+        }
+
+        data.push_back(row);
+    }
+
+    file.close();
+
+    return data;
+}
+
+void iris(){
+    AD ad;
+
+    vector<int> layer_dims = {4, 3};
+    vector<vector<Tensor<float>>> weights;
+    for(int i = 1; i < layer_dims.size(); i++){
+        vector<Tensor<float>> tmp;
+        for(int j = 0; j < layer_dims[i]; j++){
+            tmp.push_back(ad.tensor<float>());
+            tmp[j].push_back(0);
+        }
+        weights.push_back(tmp);
+    }
+    // Get data
+    auto data = readCSV("iris.csv");
+
+    for(auto row : data){
+        for(auto col : row){
+            cout<<col<<"\t";
+        }
+        cout<<endl;
+    }
+
+    // split into x, y
+    vector<vector<int>> data_x;
+    vector<int> data_y;
+    for(auto row : data){
+        data_x.push_back({
+            stoi(row[0]),
+            stoi(row[1]),
+            stoi(row[2]),
+            stoi(row[3]),
+        });
+        if(row[0] == "Setosa"){
+            data_y.push_back(0);
+        }
+        else if(row[0] == "Versicolor"){
+            data_y.push_back(1);
+        }
+        else{
+            data_y.push_back(2);
+        }
+    }
+
+    
+
+}
+
 int32_t main(){
     AD ad;
     auto a = ad.tensor<float>();
     auto c = ad.tensor<float>();
     c.push_back(5);
+    a.push_back(10);
     a.push_back(10);
     a.need_grad();
 
@@ -357,7 +440,9 @@ int32_t main(){
     for(auto x : a)cout<<x<<" ";cout<<endl;
     for(auto x : a.grad)cout<<x<<" ";cout<<endl;
     
+    iris();
 }
 
 
 // TODO: need to delete the extra pointers
+
