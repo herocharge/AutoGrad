@@ -117,6 +117,79 @@ class Tensor : public vector<T>{
             }
             return *res_ptr;
         }
+
+        Tensor<T> operator*(float op1){
+            auto res_ptr = new Tensor<T>(comp_graph);
+            Tensor<T>& result = (*res_ptr);
+            result.grad_required |= this->grad_required;
+            auto dd = new vector<float>();
+            for(auto x : *this){
+                result.push_back(x * op1);
+                if(result.grad_required)
+                    (*dd).push_back(op1);
+            }
+            if(result.grad_required){
+                // result.need_grad();
+                size_t size = result.size();
+                result.grad.assign(size, 0);
+                result.cg_node =  comp_graph->add_intermediate(result, cg_node, dd);
+            }
+            return *res_ptr;
+        }
+        Tensor<T> operator+(float op1){
+            auto res_ptr = new Tensor<T>(comp_graph);
+            Tensor<T>& result = (*res_ptr);
+            result.grad_required |= this->grad_required;
+            auto dd = new vector<float>();
+            for(auto x : *this){
+                result.push_back(x + op1);
+                if(result.grad_required)
+                    (*dd).push_back(1);
+            }
+            if(result.grad_required){
+                // result.need_grad();
+                size_t size = result.size();
+                result.grad.assign(size, 0);
+                result.cg_node =  comp_graph->add_intermediate(result, cg_node, dd);
+            }
+            return *res_ptr;
+        }
+        Tensor<T> operator-(float op1){
+            auto res_ptr = new Tensor<T>(comp_graph);
+            Tensor<T>& result = (*res_ptr);
+            result.grad_required |= this->grad_required;
+            auto dd = new vector<float>();
+            for(auto x : *this){
+                result.push_back(x - op1);
+                if(result.grad_required)
+                    (*dd).push_back(1);
+            }
+            if(result.grad_required){
+                // result.need_grad();
+                size_t size = result.size();
+                result.grad.assign(size, 0);
+                result.cg_node = comp_graph->add_intermediate(result, cg_node, dd);
+            }
+            return *res_ptr;
+        }
+        Tensor<T> operator/(float op1){
+            auto res_ptr = new Tensor<T>(comp_graph);
+            Tensor<T>& result = (*res_ptr);
+            result.grad_required |= this->grad_required;
+            auto dd = new vector<float>();
+            for(auto x : *this){
+                result.push_back(x / op1);
+                if(result.grad_required)
+                    (*dd).push_back(1.0/op1);
+            }
+            if(result.grad_required){
+                // result.need_grad();
+                size_t size = result.size();
+                result.grad.assign(size, 0);
+                result.cg_node =  comp_graph->add_intermediate(result, cg_node, dd);
+            }
+            return *res_ptr;
+        }
         
         Tensor<T> operator+(const Tensor<T>& op1){
             assert(op1.size() == (*this).size());
@@ -141,7 +214,10 @@ class Tensor : public vector<T>{
                 // result.need_grad();
                 size_t size = result.size();
                 result.grad.assign(size, 0);
-                result.cg_node =  comp_graph->add_intermediate(result, cg_node, dd1, op1.cg_node, dd2);
+                if(op1.grad_required)
+                    result.cg_node =  comp_graph->add_intermediate(result, cg_node, dd1, op1.cg_node, dd2);
+                else
+                    result.cg_node =  comp_graph->add_intermediate(result, cg_node, dd1);
             }
             return *res_ptr;
         }
@@ -165,7 +241,10 @@ class Tensor : public vector<T>{
                 // result.need_grad();
                 size_t size = result.size();
                 result.grad.assign(size, 0);
-                result.cg_node =  comp_graph->add_intermediate(result, cg_node, dd1, op1.cg_node, dd2);
+                if(op1.grad_required)
+                    result.cg_node =  comp_graph->add_intermediate(result, cg_node, dd1, op1.cg_node, dd2);
+                else
+                    result.cg_node =  comp_graph->add_intermediate(result, cg_node, dd1);
             }
             return *res_ptr;
         }
@@ -192,7 +271,10 @@ class Tensor : public vector<T>{
                 // result.need_grad();
                 size_t size = result.size();
                 result.grad.assign(size, 0);
-                result.cg_node =  comp_graph->add_intermediate(result, cg_node, dd1, op1.cg_node, dd2);
+                if(op1.grad_required)
+                    result.cg_node =  comp_graph->add_intermediate(result, cg_node, dd1, op1.cg_node, dd2);
+                else
+                    result.cg_node =  comp_graph->add_intermediate(result, cg_node, dd1);
             }
             return *res_ptr;
         }
@@ -263,7 +345,7 @@ class AD{
 
         int idx1 = dep1->idx;
         adj[node->idx].push_back(Edge(idx1, *dd1));
-
+        cout<<dep2<<endl;
         if(dep2 != nullptr){
             int idx2 = dep2->idx;
             adj[node->idx].push_back(Edge(idx2, *dd2));
@@ -313,6 +395,16 @@ class AD{
         }
     }
 
+    void zero_grad(){
+        for(Node* node : nodes){
+            // if(node == NULL)continue;
+            // cout<<
+            for(auto &x : node->dv){
+                x = 0;
+            }
+        }
+    }
+
 
 
     template <typename T>
@@ -336,6 +428,18 @@ Tensor<T> operator+(int left, Tensor<T>& right){
 }
 template <typename T>
 Tensor<T> operator*(int left, Tensor<T>& right){
+    return right * left;
+}
+template <typename T>
+Tensor<T> operator-(float left, Tensor<T>& right){
+    return (right - left) * -1;
+}
+template <typename T>
+Tensor<T> operator+(float left, Tensor<T>& right){
+    return right + left;
+}
+template <typename T>
+Tensor<T> operator*(float left, Tensor<T>& right){
     return right * left;
 }
 
@@ -377,15 +481,24 @@ void iris(){
     AD ad;
 
     vector<int> layer_dims = {4, 3};
-    vector<vector<Tensor<float>>> weights;
-    for(int i = 1; i < layer_dims.size(); i++){
-        vector<Tensor<float>> tmp;
-        for(int j = 0; j < layer_dims[i]; j++){
-            tmp.push_back(ad.tensor<float>());
-            tmp[j].push_back(0);
+    vector<vector<vector<Tensor<float>>>> weights;
+
+    // array of inp dim x out dim matrix
+    for(int k = 1; k < layer_dims.size(); k++){  
+        vector<vector<Tensor<float>>> tmp2;  
+        for(int i = 0; i < layer_dims[k-1]; i++){
+            vector<Tensor<float>> tmp;
+            for(int j = 0; j < layer_dims[k]; j++){
+                tmp.push_back(ad.tensor<float>());
+                tmp[j].push_back(0);
+                tmp[j].need_grad();
+            }
+            tmp2.push_back(tmp);
         }
-        weights.push_back(tmp);
+        weights.push_back(tmp2);
     }
+
+
     // Get data
     auto data = readCSV("iris.csv");
 
@@ -397,14 +510,19 @@ void iris(){
     }
 
     // split into x, y
-    vector<vector<int>> data_x;
+    vector<vector<float>> data_x;
     vector<int> data_y;
+    bool first = true;
     for(auto row : data){
+        if(first){
+            first = false;
+            continue;
+        }
         data_x.push_back({
-            stoi(row[0]),
-            stoi(row[1]),
-            stoi(row[2]),
-            stoi(row[3]),
+            stof(row[0]),
+            stof(row[1]),
+            stof(row[2]),
+            stof(row[3]),
         });
         if(row[0] == "Setosa"){
             data_y.push_back(0);
@@ -416,6 +534,43 @@ void iris(){
             data_y.push_back(2);
         }
     }
+
+    // TODO: split into train and test
+
+    
+    int epochs = 10;
+    while (epochs--)
+    {
+        cout<<epochs<<endl;
+        for(auto X : data_x){
+            vector<vector<Tensor<float>>> activations;
+            for(int i = 0; i < layer_dims.size(); i++){
+                vector<Tensor<float>> tmp;
+                for(int j = 0; j < layer_dims[i]; j++){
+                    tmp.push_back(ad.tensor<float>());
+                    if(i == 0){
+                        // cout<<X[j]<<endl;
+                        tmp[j].push_back(X[j]);
+                    }
+                    else{
+                        tmp[j].push_back(0);
+                    }
+                }
+                activations.push_back(tmp);
+            }
+            for(int k = 1; k < layer_dims.size(); k++){
+                for(int j = 0; j < layer_dims[k]; j++){
+                    for(int i = 0; i < layer_dims[k-1]; i++){
+                        activations[k][j] = activations[k][j] +  weights[k-1][i][j] * activations[k-1][i];
+                    }
+                }
+            }
+            // ad.backward();
+            ad.zero_grad();
+
+        }
+    }
+       
 
     
 
